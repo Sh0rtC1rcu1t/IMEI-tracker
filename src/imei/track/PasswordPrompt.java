@@ -95,7 +95,7 @@ public class PasswordPrompt extends javax.swing.JFrame {
         mainF = new MainFrame();
         
         try {
-            result = mainF.qeueryDatabase();
+            result = mainF.queryDatabase();
         } catch (SQLException | ClassNotFoundException ex) {
             Logger.getLogger(PasswordPrompt.class.getName()).log(Level.SEVERE, null, ex);
         }
