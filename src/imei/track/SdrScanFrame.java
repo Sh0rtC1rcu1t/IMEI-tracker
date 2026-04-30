@@ -16,6 +16,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
@@ -24,6 +25,8 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingWorker;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 import javax.swing.table.DefaultTableModel;
 
 /**
@@ -51,6 +54,7 @@ public class SdrScanFrame extends JFrame {
     private static final Pattern PAT_KALIBRATE = Pattern.compile(
             "arfcn:\\s*(\\d+),\\s*freq:\\s*([\\d.]+)\\s*MHz,\\s*power:\\s*([\\d.-]+)\\s*dBm");
 
+    private final MainFrame mainFrame;
     private final String detectedTool;
     private volatile Process scanProcess;
     private SwingWorker<Void, String> scanWorker;
@@ -61,13 +65,15 @@ public class SdrScanFrame extends JFrame {
     private JCheckBox biasTCheck;
     private JButton startButton;
     private JButton stopButton;
+    private JButton findInDbButton;
     private JLabel toolLabel;
     private JLabel statusLabel;
     private DefaultTableModel tableModel;
     private JTable resultsTable;
     private JTextArea logArea;
 
-    public SdrScanFrame() {
+    public SdrScanFrame(MainFrame mainFrame) {
+        this.mainFrame = mainFrame;
         setTitle("GSM Cell Tower Scanner — RTL-SDR V3/V4");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         detectedTool = detectTool();
@@ -125,6 +131,27 @@ public class SdrScanFrame extends JFrame {
         JScrollPane tableScroll = new JScrollPane(resultsTable);
         tableScroll.setPreferredSize(new Dimension(760, 200));
 
+        // "Find in Database" is only meaningful when grgsm gives us full cell identity
+        findInDbButton = new JButton("Find in Database");
+        findInDbButton.setEnabled(false);
+        findInDbButton.setToolTipText(
+                "Look up phones whose last-seen cell matches the selected row (requires grgsm_scanner).");
+        findInDbButton.addActionListener(e -> findInDatabase());
+
+        resultsTable.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(ListSelectionEvent e) {
+                if (!e.getValueIsAdjusting()) {
+                    findInDbButton.setEnabled(
+                            TOOL_GRGSM.equals(detectedTool)
+                            && resultsTable.getSelectedRow() >= 0);
+                }
+            }
+        });
+
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        actionPanel.add(findInDbButton);
+
         logArea = new JTextArea(8, 80);
         logArea.setEditable(false);
         logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
@@ -136,10 +163,14 @@ public class SdrScanFrame extends JFrame {
         statusLabel = new JLabel("Ready.");
         statusLabel.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
 
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.add(actionPanel, BorderLayout.NORTH);
+        centerPanel.add(split, BorderLayout.CENTER);
+
         getContentPane().setLayout(new BorderLayout());
-        getContentPane().add(configPanel, BorderLayout.NORTH);
-        getContentPane().add(split,       BorderLayout.CENTER);
-        getContentPane().add(statusLabel, BorderLayout.SOUTH);
+        getContentPane().add(configPanel,   BorderLayout.NORTH);
+        getContentPane().add(centerPanel,   BorderLayout.CENTER);
+        getContentPane().add(statusLabel,   BorderLayout.SOUTH);
     }
 
     private void configureTableColumns() {
@@ -194,6 +225,7 @@ public class SdrScanFrame extends JFrame {
         logArea.setText("");
         startButton.setEnabled(false);
         stopButton.setEnabled(true);
+        findInDbButton.setEnabled(false);
 
         int     device = (Integer) deviceSpinner.getValue();
         int     gain   = (Integer) gainSpinner.getValue();
@@ -275,7 +307,6 @@ public class SdrScanFrame extends JFrame {
 
     private List<String> buildSingleCommand(String band, int device, int gain, boolean biasT) {
         List<String> cmd = new ArrayList<>();
-        // Canonical band token used by gr-gsm and kalibrate-rtl: GSM900 / GSM1800
         String bandToken = band.replace("-", "");
 
         if (TOOL_GRGSM.equals(detectedTool)) {
@@ -289,18 +320,17 @@ public class SdrScanFrame extends JFrame {
             cmd.add("-d"); cmd.add(String.valueOf(device));
 
         } else {
-            // rtl_power — passive frequency sweep, ARFCNs computed from bin frequencies
             String freqRange = "GSM-900".equals(band)
                     ? "935M:960M:200k"
                     : "1805M:1880M:200k";
             cmd.add("rtl_power");
             cmd.add("-f"); cmd.add(freqRange);
-            cmd.add("-i"); cmd.add("5");   // 5-second integration
-            cmd.add("-1");                  // single shot
+            cmd.add("-i"); cmd.add("5");
+            cmd.add("-1");
             cmd.add("-g"); cmd.add(String.valueOf(gain));
             cmd.add("-d"); cmd.add(String.valueOf(device));
             if (biasT) cmd.add("-T");
-            cmd.add("-");                   // output to stdout
+            cmd.add("-");
         }
         return cmd;
     }
@@ -373,5 +403,42 @@ public class SdrScanFrame extends JFrame {
             return 512 + (int) Math.round((mhz - 1805.2) / 0.2);
         }
         return -1;
+    }
+
+    // -------------------------------------------------------------------------
+    // Database cross-reference
+    // -------------------------------------------------------------------------
+
+    private void findInDatabase() {
+        int row = resultsTable.getSelectedRow();
+        if (row < 0 || !TOOL_GRGSM.equals(detectedTool)) return;
+        // grgsm columns: ARFCN(0), Freq(1), MCC(2), MNC(3), LAC(4), Cell ID(5), Power(6)
+        String mcc    = String.valueOf(tableModel.getValueAt(row, 2));
+        String mnc    = String.valueOf(tableModel.getValueAt(row, 3));
+        String lac    = String.valueOf(tableModel.getValueAt(row, 4));
+        String cellId = String.valueOf(tableModel.getValueAt(row, 5));
+        String cellKey = mcc + ":" + mnc + ":" + lac + ":" + cellId;
+        List<Phones> matches = mainFrame.findByCell(cellKey);
+        showCrossReferenceDialog(cellKey, matches);
+    }
+
+    private void showCrossReferenceDialog(String cellKey, List<Phones> matches) {
+        if (matches.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "No phones in the database were last seen at cell " + cellKey + ".",
+                    "Cross-Reference", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        StringBuilder sb = new StringBuilder(
+                "<html><b>" + matches.size() + " phone(s) last seen at cell " + cellKey + ":</b><br><br>");
+        for (Phones p : matches) {
+            sb.append("&nbsp;&nbsp;IMEI: <b>").append(p.getImei()).append("</b>")
+              .append(" &mdash; Owner: ").append(p.getName())
+              .append("<br>");
+        }
+        sb.append("</html>");
+        JOptionPane.showMessageDialog(this, sb.toString(),
+                "Cross-Reference — " + matches.size() + " match(es)",
+                JOptionPane.INFORMATION_MESSAGE);
     }
 }

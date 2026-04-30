@@ -2,26 +2,36 @@ package imei.track;
 
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import javax.swing.JFileChooser;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
 
 public class MainFrame extends javax.swing.JFrame {
 
     private String _imeiData;
+    private String _createdAt;
+    private String _updatedAt;
+    private String _lastSeenCell;
     private static char[] password;
     private String name;
     private String history;
@@ -65,9 +75,9 @@ public class MainFrame extends javax.swing.JFrame {
         jButton5 = new javax.swing.JButton();
         jPanel2 = new javax.swing.JPanel();
 
-        // table setup
+        // table setup — 6 columns
         tableModel = new javax.swing.table.DefaultTableModel(
-                new Object[]{"Owner", "IMEI", "Repair History"}, 0) {
+                new Object[]{"Owner", "IMEI", "Repair History", "Created", "Updated", "Last Cell"}, 0) {
             @Override
             public boolean isCellEditable(int row, int col) { return false; }
         };
@@ -75,25 +85,6 @@ public class MainFrame extends javax.swing.JFrame {
         jTable1.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         jTable1.setFillsViewportHeight(true);
         jScrollPane1 = new javax.swing.JScrollPane(jTable1);
-
-        jTable1.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
-            @Override
-            public void valueChanged(ListSelectionEvent e) {
-                if (!e.getValueIsAdjusting()) {
-                    int row = jTable1.getSelectedRow();
-                    if (row >= 0) {
-                        name      = (String) tableModel.getValueAt(row, 0);
-                        _imeiData = (String) tableModel.getValueAt(row, 1);
-                        history   = (String) tableModel.getValueAt(row, 2);
-                        jButton2.setVisible(true);
-                        jButton4.setVisible(true);
-                    } else {
-                        jButton2.setVisible(false);
-                        jButton4.setVisible(false);
-                    }
-                }
-            }
-        });
 
         jButton2 = new javax.swing.JButton();
         jButton2.setText("EDIT");
@@ -111,6 +102,28 @@ public class MainFrame extends javax.swing.JFrame {
             }
         });
 
+        jTable1.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(ListSelectionEvent e) {
+                if (!e.getValueIsAdjusting()) {
+                    int row = jTable1.getSelectedRow();
+                    if (row >= 0) {
+                        name          = (String) tableModel.getValueAt(row, 0);
+                        _imeiData     = (String) tableModel.getValueAt(row, 1);
+                        history       = (String) tableModel.getValueAt(row, 2);
+                        _createdAt    = (String) tableModel.getValueAt(row, 3);
+                        _updatedAt    = (String) tableModel.getValueAt(row, 4);
+                        _lastSeenCell = (String) tableModel.getValueAt(row, 5);
+                        jButton2.setVisible(true);
+                        jButton4.setVisible(true);
+                    } else {
+                        jButton2.setVisible(false);
+                        jButton4.setVisible(false);
+                    }
+                }
+            }
+        });
+
         javax.swing.JPanel buttonPanel = new javax.swing.JPanel(new FlowLayout(FlowLayout.CENTER));
         buttonPanel.add(jButton2);
         buttonPanel.add(jButton4);
@@ -118,6 +131,22 @@ public class MainFrame extends javax.swing.JFrame {
         jPanel2.setLayout(new BorderLayout());
         jPanel2.add(jScrollPane1, BorderLayout.CENTER);
         jPanel2.add(buttonPanel, BorderLayout.SOUTH);
+
+        // Menu bar
+        JMenuBar menuBar = new JMenuBar();
+        JMenu fileMenu = new JMenu("File");
+        JMenuItem importItem = new JMenuItem("Import CSV…");
+        JMenuItem exportItem = new JMenuItem("Export CSV…");
+        JMenuItem exitItem   = new JMenuItem("Exit");
+        importItem.addActionListener(e -> importCsv());
+        exportItem.addActionListener(e -> exportCsv());
+        exitItem.addActionListener(e -> System.exit(0));
+        fileMenu.add(importItem);
+        fileMenu.add(exportItem);
+        fileMenu.addSeparator();
+        fileMenu.add(exitItem);
+        menuBar.add(fileMenu);
+        setJMenuBar(menuBar);
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setResizable(false);
@@ -215,8 +244,12 @@ public class MainFrame extends javax.swing.JFrame {
         jButton4.setVisible(false);
         if (query.isEmpty()) return;
         for (Phones p : _phonesArr) {
-            if (p.getImei().toLowerCase().contains(query)) {
-                tableModel.addRow(new Object[]{p.getName(), p.getImei(), p.getHistory()});
+            if (p.getImei().toLowerCase().contains(query)
+                    || p.getName().toLowerCase().contains(query)) {
+                tableModel.addRow(new Object[]{
+                    p.getName(), p.getImei(), p.getHistory(),
+                    safe(p.getCreatedAt()), safe(p.getUpdatedAt()), safe(p.getLastSeenCell())
+                });
             }
         }
     }//GEN-LAST:event_jButton1ActionPerformed
@@ -226,6 +259,9 @@ public class MainFrame extends javax.swing.JFrame {
         editData.setNameField(name);
         editData.setImeiField(_imeiData);
         editData.setHistoryField(history);
+        editData.setLastSeenCell(safe(_lastSeenCell));
+        editData.setCreatedAt(safe(_createdAt));
+        editData.setUpdatedAt(safe(_updatedAt));
         editData.setVisible(true);
     }//GEN-LAST:event_jButton2ActionPerformed
 
@@ -235,7 +271,7 @@ public class MainFrame extends javax.swing.JFrame {
     }//GEN-LAST:event_jButton3ActionPerformed
 
     private void jButton5ActionPerformed(java.awt.event.ActionEvent evt) {
-        SdrScanFrame sdr = new SdrScanFrame();
+        SdrScanFrame sdr = new SdrScanFrame(this);
         sdr.setVisible(true);
     }
 
@@ -248,6 +284,47 @@ public class MainFrame extends javax.swing.JFrame {
             tableModel.setRowCount(0);
             jButton2.setVisible(false);
             jButton4.setVisible(false);
+        }
+    }
+
+    private void importCsv() {
+        JFileChooser fc = new JFileChooser();
+        fc.setFileFilter(new FileNameExtensionFilter("CSV files", "csv"));
+        if (fc.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        File file = fc.getSelectedFile();
+        try {
+            CsvUtils.ImportResult result = CsvUtils.importPhones(file, this);
+            JOptionPane.showMessageDialog(this, result.toString(),
+                    "Import Complete", JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Import failed: " + e.getMessage(),
+                    "Import Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void exportCsv() {
+        if (_phonesArr == null || _phonesArr.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "No records loaded. Run a search first.",
+                    "Export", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        JFileChooser fc = new JFileChooser();
+        fc.setFileFilter(new FileNameExtensionFilter("CSV files", "csv"));
+        fc.setSelectedFile(new File("phones_export.csv"));
+        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        File file = fc.getSelectedFile();
+        if (!file.getName().toLowerCase().endsWith(".csv")) {
+            file = new File(file.getPath() + ".csv");
+        }
+        try {
+            CsvUtils.exportPhones(_phonesArr, file);
+            JOptionPane.showMessageDialog(this,
+                    "Exported " + _phonesArr.size() + " record(s) to " + file.getName(),
+                    "Export Complete", JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Export failed: " + e.getMessage(),
+                    "Export Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -294,26 +371,27 @@ public class MainFrame extends javax.swing.JFrame {
             queryDatabase();
         } catch (ClassNotFoundException | SQLException e) {
             System.err.println("addToDB failed: " + e.getMessage());
-            JOptionPane.showMessageDialog(this,
-                    "Failed to save: " + e.getMessage(),
+            JOptionPane.showMessageDialog(this, "Failed to save: " + e.getMessage(),
                     "Database Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    public void updateDB(String owner, String imei, String history, String originalImei) {
+    public void updateDB(String owner, String imei, String history,
+            String originalImei, String lastSeenCell) {
         try (Connection conn = openConnection();
              PreparedStatement ps = conn.prepareStatement(
-                     "UPDATE phones SET owner=?, imei=?, history=? WHERE imei=?")) {
+                     "UPDATE phones SET owner=?, imei=?, history=?, last_seen_cell=?, "
+                     + "updated_at=NOW() WHERE imei=?")) {
             ps.setString(1, owner);
             ps.setString(2, imei);
             ps.setString(3, history);
-            ps.setString(4, originalImei);
+            ps.setString(4, lastSeenCell.isEmpty() ? null : lastSeenCell);
+            ps.setString(5, originalImei);
             ps.executeUpdate();
             queryDatabase();
         } catch (ClassNotFoundException | SQLException e) {
             System.err.println("updateDB failed: " + e.getMessage());
-            JOptionPane.showMessageDialog(this,
-                    "Failed to update: " + e.getMessage(),
+            JOptionPane.showMessageDialog(this, "Failed to update: " + e.getMessage(),
                     "Database Error", JOptionPane.ERROR_MESSAGE);
         }
     }
@@ -327,10 +405,45 @@ public class MainFrame extends javax.swing.JFrame {
             queryDatabase();
         } catch (ClassNotFoundException | SQLException e) {
             System.err.println("deleteFromDB failed: " + e.getMessage());
-            JOptionPane.showMessageDialog(this,
-                    "Failed to delete: " + e.getMessage(),
+            JOptionPane.showMessageDialog(this, "Failed to delete: " + e.getMessage(),
                     "Database Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    public void batchAddToDB(List<String[]> rows) {
+        try (Connection conn = openConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO phones (owner, imei, history) VALUES (?, ?, ?)")) {
+            for (String[] row : rows) {
+                ps.setString(1, row[0]);
+                ps.setString(2, row[1]);
+                ps.setString(3, row[2]);
+                ps.addBatch();
+            }
+            ps.executeBatch();
+            queryDatabase();
+        } catch (ClassNotFoundException | SQLException e) {
+            System.err.println("batchAddToDB failed: " + e.getMessage());
+            JOptionPane.showMessageDialog(this, "Failed to import: " + e.getMessage(),
+                    "Database Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    public boolean imeiExistsInMemory(String imei) {
+        if (_phonesArr == null) return false;
+        for (Phones p : _phonesArr) {
+            if (imei.equals(p.getImei())) return true;
+        }
+        return false;
+    }
+
+    public List<Phones> findByCell(String cellKey) {
+        List<Phones> matches = new ArrayList<>();
+        if (_phonesArr == null || cellKey == null || cellKey.isEmpty()) return matches;
+        for (Phones p : _phonesArr) {
+            if (cellKey.equals(p.getLastSeenCell())) matches.add(p);
+        }
+        return matches;
     }
 
     private static Connection openConnectionStatic() throws ClassNotFoundException, SQLException {
@@ -344,21 +457,39 @@ public class MainFrame extends javax.swing.JFrame {
 
     public static boolean queryDatabase() throws SQLException, ClassNotFoundException {
         _phonesArr = new ArrayList<>();
-        try (Connection conn = openConnectionStatic();
-             PreparedStatement ps = conn.prepareStatement("SELECT * FROM phones");
-             ResultSet srs = ps.executeQuery()) {
-            while (srs.next()) {
-                Phones phone = new Phones();
-                phone.setImei(srs.getString("imei"));
-                phone.setName(srs.getString("owner"));
-                phone.setHistory(srs.getString("history"));
-                _phonesArr.add(phone);
+        try (Connection conn = openConnectionStatic()) {
+            SchemaManager.migrate(conn);
+            try (PreparedStatement ps = conn.prepareStatement("SELECT * FROM phones");
+                 ResultSet srs = ps.executeQuery()) {
+                while (srs.next()) {
+                    Phones phone = new Phones();
+                    phone.setImei(srs.getString("imei"));
+                    phone.setName(srs.getString("owner"));
+                    phone.setHistory(srs.getString("history"));
+                    phone.setCreatedAt(getColumnSafe(srs, "created_at"));
+                    phone.setUpdatedAt(getColumnSafe(srs, "updated_at"));
+                    phone.setLastSeenCell(getColumnSafe(srs, "last_seen_cell"));
+                    _phonesArr.add(phone);
+                }
             }
             return true;
         } catch (ClassNotFoundException | SQLException e) {
             System.err.println("queryDatabase failed: " + e.getMessage());
             return false;
         }
+    }
+
+    private static String getColumnSafe(ResultSet rs, String column) {
+        try {
+            String val = rs.getString(column);
+            return val == null ? "" : val;
+        } catch (SQLException e) {
+            return "";
+        }
+    }
+
+    private static String safe(String s) {
+        return s == null ? "" : s;
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
