@@ -5,6 +5,8 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -16,6 +18,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import javax.swing.AbstractAction;
 import javax.swing.JFileChooser;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
@@ -23,6 +26,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
@@ -66,6 +70,7 @@ public class MainFrame extends javax.swing.JFrame {
         initComponents();
         jButton2.setVisible(false);
         jButton4.setVisible(false);
+        postInit();
     }
 
     @SuppressWarnings("unchecked")
@@ -80,6 +85,9 @@ public class MainFrame extends javax.swing.JFrame {
         jButton5 = new javax.swing.JButton();
         statusFilterCombo = new javax.swing.JComboBox<>(
                 new String[]{"All", "ACTIVE", "STOLEN", "FOUND"});
+        statusStatsLabel = new javax.swing.JLabel(
+                "Total: 0  |  Active: 0  |  Stolen: 0  |  Found: 0");
+        statusStatsLabel.setHorizontalAlignment(javax.swing.SwingConstants.RIGHT);
         jPanel2 = new javax.swing.JPanel();
 
         // table setup — 7 columns
@@ -217,7 +225,10 @@ public class MainFrame extends javax.swing.JFrame {
                 .addComponent(jButton3)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(jButton5)
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED,
+                        javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addComponent(statusStatsLabel)
+                .addContainerGap())
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -231,7 +242,8 @@ public class MainFrame extends javax.swing.JFrame {
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(jButton3)
-                    .addComponent(jButton5)))
+                    .addComponent(jButton5)
+                    .addComponent(statusStatsLabel)))
         );
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
@@ -254,6 +266,12 @@ public class MainFrame extends javax.swing.JFrame {
         configureTable();
     }// </editor-fold>//GEN-END:initComponents
 
+    private void postInit() {
+        buildTablePopupMenu();
+        wireTablePopupMenu();
+        wireKeyboardShortcuts();
+    }
+
     private void configureTable() {
         int[] widths = {120, 155, 180, 110, 110, 130, 70};
         for (int i = 0; i < widths.length; i++) {
@@ -265,6 +283,152 @@ public class MainFrame extends javax.swing.JFrame {
             jTable1.getColumnModel().getColumn(i).setCellRenderer(renderer);
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Right-click context menu
+    // -------------------------------------------------------------------------
+
+    private void buildTablePopupMenu() {
+        tablePopupMenu = new javax.swing.JPopupMenu();
+
+        JMenuItem miActive = new JMenuItem("Mark as ACTIVE");
+        JMenuItem miStolen = new JMenuItem("Mark as STOLEN");
+        JMenuItem miFound  = new JMenuItem("Mark as FOUND");
+        miActive.addActionListener(e -> quickSetStatus(_imeiData, "ACTIVE"));
+        miStolen.addActionListener(e -> quickSetStatus(_imeiData, "STOLEN"));
+        miFound .addActionListener(e -> quickSetStatus(_imeiData, "FOUND"));
+
+        JMenuItem miCopy = new JMenuItem("Copy IMEI to Clipboard");
+        miCopy.addActionListener(e -> {
+            if (_imeiData != null && !_imeiData.isEmpty()) {
+                java.awt.Toolkit.getDefaultToolkit()
+                        .getSystemClipboard()
+                        .setContents(new StringSelection(_imeiData), null);
+            }
+        });
+
+        JMenuItem miEdit   = new JMenuItem("Edit");
+        JMenuItem miDelete = new JMenuItem("Delete");
+        miEdit  .addActionListener(e -> jButton2ActionPerformed(null));
+        miDelete.addActionListener(e -> jButton4ActionPerformed(null));
+
+        tablePopupMenu.add(miActive);
+        tablePopupMenu.add(miStolen);
+        tablePopupMenu.add(miFound);
+        tablePopupMenu.addSeparator();
+        tablePopupMenu.add(miCopy);
+        tablePopupMenu.addSeparator();
+        tablePopupMenu.add(miEdit);
+        tablePopupMenu.add(miDelete);
+    }
+
+    private void wireTablePopupMenu() {
+        jTable1.addMouseListener(new java.awt.event.MouseAdapter() {
+            private void maybeShowPopup(java.awt.event.MouseEvent e) {
+                if (!e.isPopupTrigger()) return;
+                int viewRow = jTable1.rowAtPoint(e.getPoint());
+                if (viewRow < 0) return;
+                jTable1.setRowSelectionInterval(viewRow, viewRow);
+                tablePopupMenu.show(e.getComponent(), e.getX(), e.getY());
+            }
+            @Override public void mousePressed (java.awt.event.MouseEvent e) { maybeShowPopup(e); }
+            @Override public void mouseReleased(java.awt.event.MouseEvent e) { maybeShowPopup(e); }
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // Keyboard shortcuts (InputMap/ActionMap)
+    // -------------------------------------------------------------------------
+
+    private void wireKeyboardShortcuts() {
+        // Delete key: confirm + delete selected row
+        jTable1.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
+               .put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0), "deleteRow");
+        jTable1.getActionMap().put("deleteRow", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (jTable1.getSelectedRow() >= 0) jButton4ActionPerformed(null);
+            }
+        });
+
+        // Enter key: open EditData for selected row
+        jTable1.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
+               .put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "editRow");
+        jTable1.getActionMap().put("editRow", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (jTable1.getSelectedRow() >= 0) jButton2ActionPerformed(null);
+            }
+        });
+
+        // F5: re-query DB and reapply filters (window-wide scope)
+        jTable1.getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW)
+               .put(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0), "refreshDb");
+        jTable1.getActionMap().put("refreshDb", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) {
+                try { queryDatabase(); } catch (Exception ex) {
+                    System.err.println("F5 refresh failed: " + ex.getMessage());
+                }
+                applyFilters();
+            }
+        });
+
+        // Escape in search field: clear text and reapply filters
+        jTextField1.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
+                   .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "clearSearch");
+        jTextField1.getActionMap().put("clearSearch", new AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent e) {
+                jTextField1.setText("");
+                applyFilters();
+            }
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // Quick status update (no EditData dialog)
+    // -------------------------------------------------------------------------
+
+    public void quickSetStatus(String imei, String status) {
+        if (imei == null || imei.isEmpty()) return;
+        try (Connection conn = openConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE phones SET status=?, updated_at=NOW() WHERE imei=?")) {
+            ps.setString(1, status);
+            ps.setString(2, imei);
+            ps.executeUpdate();
+            queryDatabase();
+            applyFilters();
+        } catch (ClassNotFoundException | SQLException ex) {
+            System.err.println("quickSetStatus failed: " + ex.getMessage());
+            JOptionPane.showMessageDialog(this, "Failed to update status: " + ex.getMessage(),
+                    "Database Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Statistics label
+    // -------------------------------------------------------------------------
+
+    private void updateStats() {
+        if (_phonesArr == null || _phonesArr.isEmpty()) {
+            statusStatsLabel.setText("Total: 0  |  Active: 0  |  Stolen: 0  |  Found: 0");
+            return;
+        }
+        int total = _phonesArr.size(), active = 0, stolen = 0, found = 0;
+        for (Phones p : _phonesArr) {
+            String s = p.getStatus();
+            if      ("ACTIVE".equals(s)) active++;
+            else if ("STOLEN".equals(s)) stolen++;
+            else if ("FOUND" .equals(s)) found++;
+        }
+        statusStatsLabel.setText(
+                "Total: " + total
+                + "  |  Active: " + active
+                + "  |  Stolen: " + stolen
+                + "  |  Found: "  + found);
+    }
+
+    // -------------------------------------------------------------------------
+    // Event handlers
+    // -------------------------------------------------------------------------
 
     private void jTextField1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jTextField1ActionPerformed
         applyFilters();
@@ -280,7 +444,7 @@ public class MainFrame extends javax.swing.JFrame {
         tableModel.setRowCount(0);
         jButton2.setVisible(false);
         jButton4.setVisible(false);
-        if (_phonesArr == null) return;
+        if (_phonesArr == null) { updateStats(); return; }
         for (Phones p : _phonesArr) {
             boolean textMatch = query.isEmpty()
                     || p.getImei().toLowerCase().contains(query)
@@ -295,6 +459,7 @@ public class MainFrame extends javax.swing.JFrame {
                 });
             }
         }
+        updateStats();
     }
 
     public void refreshTable() {
@@ -324,14 +489,12 @@ public class MainFrame extends javax.swing.JFrame {
     }
 
     private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {
+        if (_imeiData == null || _imeiData.isEmpty()) return;
         int confirm = JOptionPane.showConfirmDialog(this,
                 "Delete record for IMEI: " + _imeiData + "?",
                 "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (confirm == JOptionPane.YES_OPTION) {
             deleteFromDB(_imeiData);
-            tableModel.setRowCount(0);
-            jButton2.setVisible(false);
-            jButton4.setVisible(false);
         }
     }
 
@@ -351,9 +514,10 @@ public class MainFrame extends javax.swing.JFrame {
     }
 
     private void exportCsv() {
-        if (_phonesArr == null || _phonesArr.isEmpty()) {
+        List<Phones> toExport = buildFilteredPhonesList();
+        if (toExport.isEmpty()) {
             JOptionPane.showMessageDialog(this,
-                    "No records loaded. Run a search first.",
+                    "No records visible. Adjust filters or run a search first.",
                     "Export", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
@@ -366,14 +530,26 @@ public class MainFrame extends javax.swing.JFrame {
             file = new File(file.getPath() + ".csv");
         }
         try {
-            CsvUtils.exportPhones(_phonesArr, file);
+            CsvUtils.exportPhones(toExport, file);
             JOptionPane.showMessageDialog(this,
-                    "Exported " + _phonesArr.size() + " record(s) to " + file.getName(),
+                    "Exported " + toExport.size() + " record(s) to " + file.getName(),
                     "Export Complete", JOptionPane.INFORMATION_MESSAGE);
         } catch (IOException e) {
             JOptionPane.showMessageDialog(this, "Export failed: " + e.getMessage(),
                     "Export Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private List<Phones> buildFilteredPhonesList() {
+        List<Phones> result = new ArrayList<>();
+        if (_phonesArr == null) return result;
+        for (int i = 0; i < tableModel.getRowCount(); i++) {
+            String imei = (String) tableModel.getValueAt(i, 1);
+            for (Phones p : _phonesArr) {
+                if (imei.equals(p.getImei())) { result.add(p); break; }
+            }
+        }
+        return result;
     }
 
     public static void main(String args[]) {
@@ -590,8 +766,10 @@ public class MainFrame extends javax.swing.JFrame {
     private javax.swing.JButton jButton4;
     private javax.swing.JButton jButton5;
     private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel statusStatsLabel;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
+    private javax.swing.JPopupMenu tablePopupMenu;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JTable jTable1;
     private javax.swing.table.DefaultTableModel tableModel;
