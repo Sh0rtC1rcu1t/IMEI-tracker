@@ -36,21 +36,23 @@ public class EditData extends javax.swing.JFrame {
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
-        jLabel1      = new javax.swing.JLabel();
-        jTextField1  = new javax.swing.JTextField();
-        jLabel2      = new javax.swing.JLabel();
-        jTextField2  = new javax.swing.JTextField();
-        jLabelTac    = new javax.swing.JLabel();
-        jLabel4      = new javax.swing.JLabel();
-        jTextField3  = new javax.swing.JTextField();
-        jLabel3      = new javax.swing.JLabel();
-        jScrollPane1 = new javax.swing.JScrollPane();
-        jTextArea1   = new javax.swing.JTextArea();
+        jLabel1            = new javax.swing.JLabel();
+        jTextField1        = new javax.swing.JTextField();
+        jLabel2            = new javax.swing.JLabel();
+        jTextField2        = new javax.swing.JTextField();
+        jLabelTac          = new javax.swing.JLabel();
+        jLabel4            = new javax.swing.JLabel();
+        jTextField3        = new javax.swing.JTextField();
+        jLabelStatus       = new javax.swing.JLabel();
+        jComboBoxStatus    = new javax.swing.JComboBox<>(new String[]{"ACTIVE", "STOLEN", "FOUND"});
+        jLabel3            = new javax.swing.JLabel();
+        jScrollPane1       = new javax.swing.JScrollPane();
+        jTextArea1         = new javax.swing.JTextArea();
         jLabelCreatedTitle = new javax.swing.JLabel();
         jLabelCreated      = new javax.swing.JLabel();
         jLabelUpdatedTitle = new javax.swing.JLabel();
         jLabelUpdated      = new javax.swing.JLabel();
-        jButton1     = new javax.swing.JButton();
+        jButton1           = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
         setResizable(false);
@@ -90,14 +92,21 @@ public class EditData extends javax.swing.JFrame {
                 "Format from SDR scan: MCC:MNC:LAC:CID (e.g. 310:410:12345:6789)");
         getContentPane().add(jTextField3, g);
 
-        // Row 4: Repair History label
-        g.gridx = 0; g.gridy = 4; g.gridwidth = 2;
+        // Row 4: Status
+        g.gridx = 0; g.gridy = 4; g.weightx = 0;
+        jLabelStatus.setText("Status:");
+        getContentPane().add(jLabelStatus, g);
+        g.gridx = 1; g.weightx = 1;
+        getContentPane().add(jComboBoxStatus, g);
+
+        // Row 5: Repair History label
+        g.gridx = 0; g.gridy = 5; g.gridwidth = 2;
         jLabel3.setText("Repair History:");
         getContentPane().add(jLabel3, g);
         g.gridwidth = 1;
 
-        // Row 5: History text area
-        g.gridx = 0; g.gridy = 5; g.gridwidth = 2;
+        // Row 6: History text area
+        g.gridx = 0; g.gridy = 6; g.gridwidth = 2;
         g.weighty = 1; g.fill = GridBagConstraints.BOTH;
         jTextArea1.setColumns(28);
         jTextArea1.setRows(7);
@@ -108,8 +117,8 @@ public class EditData extends javax.swing.JFrame {
         g.weighty = 0; g.fill = GridBagConstraints.HORIZONTAL;
         g.gridwidth = 1;
 
-        // Row 6: Created (edit mode only)
-        g.gridx = 0; g.gridy = 6; g.weightx = 0;
+        // Row 7: Created (edit mode only)
+        g.gridx = 0; g.gridy = 7; g.weightx = 0;
         jLabelCreatedTitle.setText("Created:");
         getContentPane().add(jLabelCreatedTitle, g);
         g.gridx = 1; g.weightx = 1;
@@ -117,8 +126,8 @@ public class EditData extends javax.swing.JFrame {
         jLabelCreated.setForeground(Color.DARK_GRAY);
         getContentPane().add(jLabelCreated, g);
 
-        // Row 7: Updated (edit mode only)
-        g.gridx = 0; g.gridy = 7; g.weightx = 0;
+        // Row 8: Updated (edit mode only)
+        g.gridx = 0; g.gridy = 8; g.weightx = 0;
         jLabelUpdatedTitle.setText("Updated:");
         getContentPane().add(jLabelUpdatedTitle, g);
         g.gridx = 1; g.weightx = 1;
@@ -126,8 +135,8 @@ public class EditData extends javax.swing.JFrame {
         jLabelUpdated.setForeground(Color.DARK_GRAY);
         getContentPane().add(jLabelUpdated, g);
 
-        // Row 8: Commit button (centred)
-        g.gridx = 0; g.gridy = 8; g.gridwidth = 2; g.weightx = 0;
+        // Row 9: Commit button (centred)
+        g.gridx = 0; g.gridy = 9; g.gridwidth = 2; g.weightx = 0;
         g.fill   = GridBagConstraints.NONE;
         g.anchor = GridBagConstraints.CENTER;
         jButton1.setText("Commit Changes");
@@ -178,6 +187,7 @@ public class EditData extends javax.swing.JFrame {
         imei    = jTextField2.getText().trim();
         history = jTextArea1.getText().trim();
         String lastSeenCell = jTextField3.getText().trim();
+        String status       = getStatus();
 
         if (imei.isEmpty()) {
             JOptionPane.showMessageDialog(this, "IMEI cannot be empty.",
@@ -205,9 +215,9 @@ public class EditData extends javax.swing.JFrame {
         }
 
         if (isEditMode) {
-            mainFrame.updateDB(name, imei, history, originalImei, lastSeenCell);
+            mainFrame.updateDB(name, imei, history, originalImei, lastSeenCell, status);
         } else {
-            mainFrame.addToDB(name, imei, history);
+            mainFrame.addToDB(name, imei, history, status);
         }
         dispose();
     }//GEN-LAST:event_jButton1ActionPerformed
@@ -239,20 +249,27 @@ public class EditData extends javax.swing.JFrame {
     public void setLastSeenCell(String s)  { jTextField3.setText(s); }
     public void setCreatedAt(String s)     { jLabelCreated.setText(s); }
     public void setUpdatedAt(String s)     { jLabelUpdated.setText(s); }
+    public void setStatus(String s) {
+        jComboBoxStatus.setSelectedItem(
+                (s == null || s.isEmpty()) ? "ACTIVE" : s);
+    }
 
     public String getNameField()     { return jTextField1.getText().trim(); }
     public String getImeiField()     { return jTextField2.getText().trim(); }
     public String getHistoryField()  { return jTextArea1.getText().trim(); }
     public String getLastSeenCell()  { return jTextField3.getText().trim(); }
+    public String getStatus()        { return (String) jComboBoxStatus.getSelectedItem(); }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton jButton1;
+    private javax.swing.JComboBox<String> jComboBoxStatus;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabelCreated;
     private javax.swing.JLabel jLabelCreatedTitle;
+    private javax.swing.JLabel jLabelStatus;
     private javax.swing.JLabel jLabelTac;
     private javax.swing.JLabel jLabelUpdated;
     private javax.swing.JLabel jLabelUpdatedTitle;

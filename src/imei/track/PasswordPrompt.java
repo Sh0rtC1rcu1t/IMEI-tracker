@@ -103,6 +103,7 @@ public class PasswordPrompt extends javax.swing.JFrame {
         if(result)
         {
             mainF.setVisible(true);
+            mainF.refreshTable();
             this.setVisible(false);
         }else{
             new AccessDenied().setVisible(true);

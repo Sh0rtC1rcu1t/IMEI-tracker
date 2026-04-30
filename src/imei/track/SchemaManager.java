@@ -20,6 +20,8 @@ public class SchemaManager {
                     "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
             addColumnIfAbsent(conn, "last_seen_cell",
                     "VARCHAR(50) DEFAULT NULL");
+            addColumnIfAbsent(conn, "status",
+                    "ENUM('ACTIVE','STOLEN','FOUND') NOT NULL DEFAULT 'ACTIVE'");
         } catch (SQLException e) {
             System.err.println("Schema migration failed: " + e.getMessage());
         }

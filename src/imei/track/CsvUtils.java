@@ -13,7 +13,7 @@ import java.util.List;
  * CSV import and export for phone records.
  *
  * Export format (header + one row per phone):
- *   owner,imei,history,created_at,updated_at,last_seen_cell
+ *   owner,imei,history,created_at,updated_at,last_seen_cell,status
  *
  * Import: reads owner, imei, history (columns 1-3).
  *   - Rows with invalid IMEI (Luhn check) are rejected.
@@ -24,7 +24,7 @@ public class CsvUtils {
 
     public static void exportPhones(List<Phones> phones, File file) throws IOException {
         try (PrintWriter pw = new PrintWriter(new FileWriter(file))) {
-            pw.println("owner,imei,history,created_at,updated_at,last_seen_cell");
+            pw.println("owner,imei,history,created_at,updated_at,last_seen_cell,status");
             for (Phones p : phones) {
                 pw.println(
                     escape(p.getName()) + ","
@@ -32,7 +32,8 @@ public class CsvUtils {
                     + escape(p.getHistory()) + ","
                     + escape(safe(p.getCreatedAt())) + ","
                     + escape(safe(p.getUpdatedAt())) + ","
-                    + escape(safe(p.getLastSeenCell()))
+                    + escape(safe(p.getLastSeenCell())) + ","
+                    + escape(safe(p.getStatus()))
                 );
             }
         }
