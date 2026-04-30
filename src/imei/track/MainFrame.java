@@ -1,12 +1,23 @@
 package imei.track;
 
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Properties;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import javax.swing.JOptionPane;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.ListSelectionModel;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import javax.swing.table.DefaultTableModel;
 
 public class MainFrame extends javax.swing.JFrame {
 
@@ -17,9 +28,29 @@ public class MainFrame extends javax.swing.JFrame {
     private static ArrayList<Phones> _phonesArr;
     private static PasswordPrompt pPrompt;
 
+    private static final String DEFAULT_DB_URL  = "jdbc:mysql://ultifix.com:3306/ultifixc_imei";
+    private static final String DEFAULT_DB_USER = "ultifixc_admin";
+    private static final Properties DB_PROPS = new Properties();
+
+    static {
+        loadDbProps();
+    }
+
+    private static void loadDbProps() {
+        try (FileInputStream fis = new FileInputStream("db.properties")) {
+            DB_PROPS.load(fis);
+        } catch (IOException e) {
+            System.err.println("WARNING: db.properties not found; using hardcoded defaults. ("
+                    + e.getMessage() + ")");
+            DB_PROPS.setProperty("db.url",  DEFAULT_DB_URL);
+            DB_PROPS.setProperty("db.user", DEFAULT_DB_USER);
+        }
+    }
+
     public MainFrame() {
         initComponents();
         jButton2.setVisible(false);
+        jButton4.setVisible(false);
     }
 
     @SuppressWarnings("unchecked")
@@ -32,9 +63,60 @@ public class MainFrame extends javax.swing.JFrame {
         jButton1 = new javax.swing.JButton();
         jButton3 = new javax.swing.JButton();
         jPanel2 = new javax.swing.JPanel();
-        jLabel3 = new javax.swing.JLabel();
-        jLabel4 = new javax.swing.JLabel();
+
+        // table setup
+        tableModel = new javax.swing.table.DefaultTableModel(
+                new Object[]{"Owner", "IMEI", "Repair History"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int col) { return false; }
+        };
+        jTable1 = new javax.swing.JTable(tableModel);
+        jTable1.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        jTable1.setFillsViewportHeight(true);
+        jScrollPane1 = new javax.swing.JScrollPane(jTable1);
+
+        jTable1.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(ListSelectionEvent e) {
+                if (!e.getValueIsAdjusting()) {
+                    int row = jTable1.getSelectedRow();
+                    if (row >= 0) {
+                        name      = (String) tableModel.getValueAt(row, 0);
+                        _imeiData = (String) tableModel.getValueAt(row, 1);
+                        history   = (String) tableModel.getValueAt(row, 2);
+                        jButton2.setVisible(true);
+                        jButton4.setVisible(true);
+                    } else {
+                        jButton2.setVisible(false);
+                        jButton4.setVisible(false);
+                    }
+                }
+            }
+        });
+
         jButton2 = new javax.swing.JButton();
+        jButton2.setText("EDIT");
+        jButton2.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton2ActionPerformed(evt);
+            }
+        });
+
+        jButton4 = new javax.swing.JButton();
+        jButton4.setText("DELETE");
+        jButton4.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton4ActionPerformed(evt);
+            }
+        });
+
+        javax.swing.JPanel buttonPanel = new javax.swing.JPanel(new FlowLayout(FlowLayout.CENTER));
+        buttonPanel.add(jButton2);
+        buttonPanel.add(jButton4);
+
+        jPanel2.setLayout(new BorderLayout());
+        jPanel2.add(jScrollPane1, BorderLayout.CENTER);
+        jPanel2.add(buttonPanel, BorderLayout.SOUTH);
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setResizable(false);
@@ -91,47 +173,6 @@ public class MainFrame extends javax.swing.JFrame {
                 .addComponent(jButton3))
         );
 
-        jLabel4.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
-        jLabel4.setVerticalAlignment(javax.swing.SwingConstants.TOP);
-        jLabel4.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
-        jLabel4.setFocusTraversalPolicyProvider(true);
-
-        jButton2.setText("EDIT");
-        jButton2.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                jButton2ActionPerformed(evt);
-            }
-        });
-
-        javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
-        jPanel2.setLayout(jPanel2Layout);
-        jPanel2Layout.setHorizontalGroup(
-            jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(jPanel2Layout.createSequentialGroup()
-                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(jPanel2Layout.createSequentialGroup()
-                        .addGap(63, 63, 63)
-                        .addComponent(jLabel3)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(jLabel4, javax.swing.GroupLayout.PREFERRED_SIZE, 259, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(jPanel2Layout.createSequentialGroup()
-                        .addGap(170, 170, 170)
-                        .addComponent(jButton2)))
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-        );
-        jPanel2Layout.setVerticalGroup(
-            jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(jPanel2Layout.createSequentialGroup()
-                .addContainerGap()
-                .addComponent(jLabel3)
-                .addContainerGap(215, Short.MAX_VALUE))
-            .addGroup(jPanel2Layout.createSequentialGroup()
-                .addComponent(jLabel4, javax.swing.GroupLayout.PREFERRED_SIZE, 165, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(18, 18, 18)
-                .addComponent(jButton2)
-                .addGap(0, 0, Short.MAX_VALUE))
-        );
-
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
@@ -144,7 +185,7 @@ public class MainFrame extends javax.swing.JFrame {
             .addGroup(layout.createSequentialGroup()
                 .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jPanel2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addComponent(jPanel2, javax.swing.GroupLayout.DEFAULT_SIZE, 250, Short.MAX_VALUE))
         );
 
         pack();
@@ -156,26 +197,15 @@ public class MainFrame extends javax.swing.JFrame {
     }//GEN-LAST:event_jTextField1ActionPerformed
 
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
-        _imeiData = jTextField1.getText().trim();
-
-        boolean listContainsPhone = false;
+        String query = jTextField1.getText().trim().toLowerCase();
+        tableModel.setRowCount(0);
+        jButton2.setVisible(false);
+        jButton4.setVisible(false);
+        if (query.isEmpty()) return;
         for (Phones p : _phonesArr) {
-            if (p.getImei().equals(_imeiData)) {
-                jLabel4.setText("<html>Owner: " + p.getName() + "<br>"
-                        + "IMEI: " + p.getImei() + "<br>"
-                        + "REPAIR HISTORY: " + p.getHistory() + "</html>");
-                listContainsPhone = true;
-                name = p.getName();
-                history = p.getHistory();
-                break;
+            if (p.getImei().toLowerCase().contains(query)) {
+                tableModel.addRow(new Object[]{p.getName(), p.getImei(), p.getHistory()});
             }
-        }
-
-        if (listContainsPhone) {
-            jButton2.setVisible(true);
-        } else {
-            jButton2.setVisible(false);
-            jLabel4.setText("PHONE NOT IN DATABASE.");
         }
     }//GEN-LAST:event_jButton1ActionPerformed
 
@@ -191,6 +221,18 @@ public class MainFrame extends javax.swing.JFrame {
         EditData editData = new EditData(this, false, null);
         editData.setVisible(true);
     }//GEN-LAST:event_jButton3ActionPerformed
+
+    private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Delete record for IMEI: " + _imeiData + "?",
+                "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (confirm == JOptionPane.YES_OPTION) {
+            deleteFromDB(_imeiData);
+            tableModel.setRowCount(0);
+            jButton2.setVisible(false);
+            jButton4.setVisible(false);
+        }
+    }
 
     public static void main(String args[]) {
         try {
@@ -219,8 +261,8 @@ public class MainFrame extends javax.swing.JFrame {
         Class.forName("com.mysql.jdbc.Driver");
         password = pPrompt.retrievePass();
         return DriverManager.getConnection(
-                "jdbc:mysql://ultifix.com:3306/ultifixc_imei",
-                "ultifixc_admin",
+                DB_PROPS.getProperty("db.url"),
+                DB_PROPS.getProperty("db.user"),
                 String.valueOf(password));
     }
 
@@ -259,17 +301,35 @@ public class MainFrame extends javax.swing.JFrame {
         }
     }
 
+    public void deleteFromDB(String imei) {
+        try (Connection conn = openConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM phones WHERE imei=?")) {
+            ps.setString(1, imei);
+            ps.executeUpdate();
+            queryDatabase();
+        } catch (ClassNotFoundException | SQLException e) {
+            System.err.println("deleteFromDB failed: " + e.getMessage());
+            JOptionPane.showMessageDialog(this,
+                    "Failed to delete: " + e.getMessage(),
+                    "Database Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private static Connection openConnectionStatic() throws ClassNotFoundException, SQLException {
+        Class.forName("com.mysql.jdbc.Driver");
+        password = pPrompt.retrievePass();
+        return DriverManager.getConnection(
+                DB_PROPS.getProperty("db.url"),
+                DB_PROPS.getProperty("db.user"),
+                String.valueOf(password));
+    }
+
     public static boolean queryDatabase() throws SQLException, ClassNotFoundException {
         _phonesArr = new ArrayList<>();
-        password = pPrompt.retrievePass();
-        try {
-            Class.forName("com.mysql.jdbc.Driver");
-            Connection conn = DriverManager.getConnection(
-                    "jdbc:mysql://ultifix.com:3306/ultifixc_imei",
-                    "ultifixc_admin",
-                    String.valueOf(password));
-            PreparedStatement ps = conn.prepareStatement("SELECT * FROM phones");
-            ResultSet srs = ps.executeQuery();
+        try (Connection conn = openConnectionStatic();
+             PreparedStatement ps = conn.prepareStatement("SELECT * FROM phones");
+             ResultSet srs = ps.executeQuery()) {
             while (srs.next()) {
                 Phones phone = new Phones();
                 phone.setImei(srs.getString("imei"));
@@ -288,11 +348,13 @@ public class MainFrame extends javax.swing.JFrame {
     private javax.swing.JButton jButton1;
     private javax.swing.JButton jButton2;
     private javax.swing.JButton jButton3;
+    private javax.swing.JButton jButton4;
     private javax.swing.JLabel jLabel1;
-    private javax.swing.JLabel jLabel3;
-    private javax.swing.JLabel jLabel4;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
+    private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JTable jTable1;
+    private javax.swing.table.DefaultTableModel tableModel;
     private javax.swing.JTextField jTextField1;
     // End of variables declaration//GEN-END:variables
 }
