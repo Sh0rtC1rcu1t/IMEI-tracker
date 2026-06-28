@@ -70,4 +70,16 @@
     nbproject/build-impl.xml file. 
 
     -->
+
+    <target name="-post-jar">
+        <mkdir dir="${dist.dir}/lib"/>
+        <copy todir="${dist.dir}/lib">
+            <fileset dir="lib" includes="*.jar"/>
+        </copy>
+        <jar destfile="${dist.jar}" update="true">
+            <manifest>
+                <attribute name="Class-Path" value="lib/mysql-connector-java-5.0.8-bin.jar"/>
+            </manifest>
+        </jar>
+    </target>
 </project>

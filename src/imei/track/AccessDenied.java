@@ -32,7 +32,7 @@ public class AccessDenied extends javax.swing.JFrame {
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("ACCESS DENIED");
 
-        jLabel1.setText("Password for database was incorrect. If you believe your password is correct, please contact the databse administrator.");
+        jLabel1.setText("Password for database was incorrect. If you believe your password is correct, please contact the database administrator.");
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
